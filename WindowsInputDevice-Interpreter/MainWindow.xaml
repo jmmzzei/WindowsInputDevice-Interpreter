@@ -7,6 +7,7 @@
         mc:Ignorable="d"
         Title="MainWindow" Height="150" Width="200" Background="#000000" >
     <Grid>
-        <Button x:Name="btn1" Content="Connect" HorizontalAlignment="Center" VerticalAlignment="Center" BorderBrush="#111111" Width="100" Margin="0,0,0,0" Background="#00DDDD" Click="connect" Height="50"/>
+        <ComboBox x:Name="comboPorts" HorizontalAlignment="Center" VerticalAlignment="Top" Width="120" Grid.Row="1" Margin="0,10,0,0"/>
+        <Button x:Name="btn1" Content="Connect" HorizontalAlignment="Center" VerticalAlignment="Bottom" BorderBrush="Transparent" Width="100" Margin="0,0,0,10" Background="#ffffff" Click="connect" Height="50"/>
     </Grid>
 </Window>
