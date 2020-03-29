@@ -76,22 +76,33 @@ namespace WindowsInputDevice_Interpreter
                 ShowWindow(process.MainWindowHandle, SW_RESTORE);
                 SetForegroundWindow(process.MainWindowHandle);
             }
+
             string dataReceived = port.getPort().ReadExisting();
-            Executer(valueForBtn[dataReceived]);
+            if (valueForBtn[dataReceived] != "")
+                Executer(valueForBtn[dataReceived]);
+            //Console.WriteLine(dataReceived);
+            else
+                MessageBox.Show("Must specify a value for the button.");
         }
 
-        public void btnConnect(object obj, EventArgs e)
+        public void btnConnect(object sender, EventArgs e)
         {
             SerialPort localPort = port.getPort();
-
-            if (!localPort.IsOpen)
+            try
             {
-                localPort.Open();
-                MessageBox.Show(this, "Port  " + localPort.PortName + " open!");
-                comboPorts.IsEnabled = false;
+                if (!localPort.IsOpen)
+                {
+                    localPort.Open();
+                    MessageBox.Show(this, "Port  " + localPort.PortName + " open!");
+                    comboPorts.IsEnabled = false;
+                }
+                else
+                    Console.WriteLine("Already Open");
             }
-            else 
-                Console.WriteLine("Already Open");
+            catch (UnauthorizedAccessException uae)
+            {
+                MessageBox.Show(uae.ToString());
+            }
         }
 
         public void setButton(object sender, EventArgs e)
