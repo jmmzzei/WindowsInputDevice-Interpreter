@@ -5,101 +5,142 @@ using System.Windows.Controls;
 using System.Runtime.InteropServices;
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
+using System.Text;
+using System.Text.RegularExpressions;
+using System.Diagnostics;
 
 namespace WindowsInputDevice_Interpreter
 {
     public partial class MainWindow : Window
     {
-        SerialPort port = new SerialPort();
+        PortManager port = new PortManager();
+        string selectedForConfig = "";
+        private const int SW_RESTORE = 9;
+        string destinationWindow = "";
 
-        Dictionary<string, Action> keystroke = new Dictionary<string, Action>
-        {
-            {"d", Next },
-            {"l", Prev },
-            {"c", Play },
-            {"+", Up },
-            {"-", Down }
-        };
+        [DllImport("User32.dll")]
+        public static extern Int32 SetForegroundWindow(IntPtr hWnd);
+
+        [DllImport("User32.dll")]
+        public static extern int ShowWindow(IntPtr hWnd, int nCmdShow);
 
         [DllImport("user32.dll")]
         public static extern void keybd_event(byte VKey, byte scanCode, uint flags, IntPtr eInfo);
 
-        private const int KEYEVENTF_EXTENDEDNKEY = 1;
-        private const int KEYEVENTF_KEYUP = 0;
-        private const int VK_MEDIA_NEXT = 0xB0;
-        private const int VK_MEDIA_PREV = 0xB1;
-        private const int VK_MEDIA_PLAY_STOP = 0xB3;
-        private const int VK_MEDIA_VOL_UP = 0xAF;
-        private const int VK_MEDIA_VOL_DOWN = 0xAE;
-        private const int VK_MEDIA_VOL_MUTE = 0xAD;
+        private const int KEYEVENTF_EXTENDEDNKEY = 0x0001;
+        private const int KEYEVENTF_KEYDOWN = 0x0000;
+        private const int KEYEVENTF_KEYUP = 0x0002;
 
-        private static void Play()
+        private static void Executer(string keyval)
         {
-            keybd_event(VK_MEDIA_PLAY_STOP, KEYEVENTF_KEYUP, KEYEVENTF_EXTENDEDNKEY, IntPtr.Zero);
+            int decVal = Convert.ToInt32(keyval, 16);
+            byte byteVal = Convert.ToByte(decVal);
+            keybd_event(byteVal, 0, KEYEVENTF_KEYDOWN, IntPtr.Zero);
+            keybd_event(byteVal, 0, KEYEVENTF_KEYUP, IntPtr.Zero);
         }
-        private static void Next()
+
+        Dictionary<string, string> valueForBtn = new Dictionary<string, string>
         {
-            keybd_event(VK_MEDIA_NEXT, KEYEVENTF_KEYUP, KEYEVENTF_EXTENDEDNKEY, IntPtr.Zero);
-        }
-        private static void Prev()
-        {
-            keybd_event(VK_MEDIA_PREV, KEYEVENTF_KEYUP, KEYEVENTF_EXTENDEDNKEY, IntPtr.Zero);
-        }
-        private static void Mute()
-        {
-            keybd_event(VK_MEDIA_VOL_MUTE, KEYEVENTF_KEYUP, KEYEVENTF_EXTENDEDNKEY, IntPtr.Zero);
-        }
-        private static void Down()
-        {
-            keybd_event(VK_MEDIA_VOL_DOWN, KEYEVENTF_KEYUP, KEYEVENTF_EXTENDEDNKEY, IntPtr.Zero);
-        }
-        private static void Up()
-        {
-            keybd_event(VK_MEDIA_VOL_UP, KEYEVENTF_KEYUP, KEYEVENTF_EXTENDEDNKEY, IntPtr.Zero);
-        }
+            {"d",""},
+            {"c",""},
+            {"l",""},
+            {"p",""},
+            {"m",""}
+        };
 
         public MainWindow()
         {
             InitializeComponent();
-            string[] ports = SerialPort.GetPortNames();
-            foreach (var item in ports)
-                comboPorts.Items.Add(item);
-            configurePort(port);
+            port.configure();
+            port.getPort().DataReceived += new SerialDataReceivedEventHandler(port_DataReceived);
 
+            ComboCreator pCombo = new ComboCreator(comboPorts);
+            pCombo.populateCombo();
             comboPorts.SelectionChanged += new SelectionChangedEventHandler(comboPorts_SelectedIndexChanged);
-        }
 
+            ComboCreator dCombo = new ComboCreator(doubleCombo);
+            dCombo.populateCombo();
+            doubleCombo.SelectionChanged += new SelectionChangedEventHandler(doubleCombo_SelectedIndexChanged);
+            
+            ComboCreator fCombo = new ComboCreator(foregroundCombo);
+            fCombo.populateCombo();
+            foregroundCombo.SelectionChanged += new SelectionChangedEventHandler(foregroundCombo_SelectedIndexChanged);
+        }
+        
         public void port_DataReceived(object sender, SerialDataReceivedEventArgs e)
         {
-            string dataReceived = port.ReadExisting();
-            keystroke[dataReceived].Invoke();
+            Process[] processes = Process.GetProcessesByName(destinationWindow);
+            foreach (Process process in processes)
+            {
+                ShowWindow(process.MainWindowHandle, SW_RESTORE);
+                SetForegroundWindow(process.MainWindowHandle);
+            }
+            string dataReceived = port.getPort().ReadExisting();
+            Executer(valueForBtn[dataReceived]);
         }
 
-        public void connect(object obj, EventArgs e)
+        public void btnConnect(object obj, EventArgs e)
         {
-            if (!port.IsOpen)
+            SerialPort localPort = port.getPort();
+
+            if (!localPort.IsOpen)
             {
-                port.Open();
-                MessageBox.Show(this, "Port  " + port.PortName + " open!");
+                localPort.Open();
+                MessageBox.Show(this, "Port  " + localPort.PortName + " open!");
                 comboPorts.IsEnabled = false;
             }
             else 
                 Console.WriteLine("Already Open");
         }
 
-        public void comboPorts_SelectedIndexChanged(object sender, SelectionChangedEventArgs e)
+        public void setButton(object sender, EventArgs e)
         {
-            port.PortName = comboPorts.SelectedValue.ToString();
+            selectedForConfig = ((Button)sender).Name.ToString();
+            labelSelected.Content = ((Button)sender).Content.ToString();
         }
-        
-        public void configurePort(SerialPort port)
+
+
+        private void comboPorts_SelectedIndexChanged(object sender, SelectionChangedEventArgs e)
         {
-            port.BaudRate = 9600;
-            port.DtrEnable = true;
-            port.DtrEnable = true;
-            port.Parity = Parity.None;
-            port.DataBits = 8;
-            port.DataReceived += new SerialDataReceivedEventHandler(port_DataReceived);
+            port.getPort().PortName = ((ComboBox)sender).SelectedValue.ToString();
         }
+
+        public void foregroundCombo_SelectedIndexChanged(object sender, SelectionChangedEventArgs e)
+        {
+            destinationWindow = foregroundCombo.SelectedValue.ToString();
+        }
+
+        public void doubleCombo_SelectedIndexChanged(object sender, SelectionChangedEventArgs e)
+        {
+            try
+            {
+                using (StreamReader sr = new StreamReader("../../keymap.json"))
+                {
+                    string line = sr.ReadLine();
+                    while (!line.Contains(doubleCombo.SelectedValue.ToString()))
+                    {
+                        sr.Peek();
+                        line = sr.ReadLine();
+                        if (line == "}")
+                        {
+                            break;
+                        }
+                    }
+
+                    Regex regexNum = new Regex("\"(0x.*?)\"");
+
+                    var matchCollection = regexNum.Matches(line);
+                    valueForBtn[selectedForConfig] = matchCollection[0].Groups[1].Value.ToString();
+
+                    Console.WriteLine(matchCollection[0].Groups[1].Value.ToString());
+                }
+            }
+            catch (IOException ae)
+            {
+                MessageBox.Show(ae.Message);
+            }
+        }
+
     }
 }
